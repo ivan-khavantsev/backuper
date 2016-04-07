@@ -16,10 +16,11 @@ import java.util.zip.CheckedInputStream;
 
 public class Main {
 
-    //    private String dataFolder = "C:\\Users\\Ivan\\Pictures\\Фотографии\\";
     private String dataFolder;
     private String backupFolder;
     private String baseBackupName;
+    private String compressLevel = "0";
+
     private String backupFilename;
 
     private Boolean fullBackup = false;
@@ -87,7 +88,7 @@ public class Main {
 
         return dir.listFiles(new FilenameFilter() {
             public boolean accept(File dir, String filename) {
-                return filename.endsWith(".7z");
+                return (filename.startsWith(baseBackupName) && filename.endsWith(".7z"));
             }
         });
 
@@ -95,18 +96,23 @@ public class Main {
 
     private void start(String[] args) throws Exception {
 
-        Properties prop = new Properties();
-        InputStream input = new FileInputStream(args[0]);
+        if (args.length < 3) {
+            System.out.println("Usage: java -jar backuper.jar \"DataFolder\" \"BackupFolder\" \"BaseBackupName\" [CompressLevel 0-9]");
+            System.exit(1);
+        }
 
-        prop.load(input);
+        this.dataFolder = args[0] + "/";
+        this.backupFolder = args[1] + "/";
+        this.baseBackupName = args[2];
 
-        this.dataFolder = new String(prop.getProperty("dataFolder").getBytes("ISO-8859-1"), "UTF-8");
-        this.backupFolder = new String(prop.getProperty("backupFolder").getBytes("ISO-8859-1"), "UTF-8");
-        this.baseBackupName = new String(prop.getProperty("baseBackupName").getBytes("ISO-8859-1"), "UTF-8");
+        if (args.length > 3) {
+            compressLevel = args[3];
+        }
 
-        System.out.println(dataFolder);
-        System.out.println(backupFolder);
-        System.out.println(baseBackupName);
+        System.out.println();
+        System.out.println("Data folder:    " + dataFolder);
+        System.out.println("Backup folder:  " + backupFolder);
+        System.out.println("Base name:      " + baseBackupName);
 
         System.out.println("Check files in backup");
         Map<String, Long> filesInArchives = new HashMap<>();
@@ -136,7 +142,6 @@ public class Main {
 
         if (!files.isEmpty()) {
 
-
             DateFormat dateFormat = new SimpleDateFormat("yyyyMMddHHmmss");
             Date date = new Date();
             String formattedDate = dateFormat.format(date);
@@ -144,28 +149,19 @@ public class Main {
             String listFileName = this.backupFolder + "filelist." + formattedDate + ".txt";
             try {
                 String appendix = (this.fullBackup) ? "full" : "inc";
-                this.backupFilename = this.backupFolder + this.baseBackupName + "." + formattedDate + "." + appendix +".7z";
+                this.backupFilename = this.backupFolder + this.baseBackupName + "." + formattedDate + "." + appendix + ".7z";
 
-                List<String> commands = new LinkedList<>();
-                commands.add("7z");
-                commands.add("a");
-                commands.add("-mx0");
-                commands.add(this.backupFilename);
 
                 PrintWriter writer = new PrintWriter(listFileName, "UTF-8");
                 for (String file : files) {
                     writer.println(file);
                 }
                 writer.close();
-                commands.add("-i@" + listFileName);
 
-
-                String[] comm = new String[commands.size()];
-                commands.toArray(comm);
+                String[] commands = {"7z", "a", "-mx" + compressLevel, this.backupFilename, "-i@" + listFileName};
 
                 Runtime rt = Runtime.getRuntime();
-                Process proc = rt.exec(comm, null, new File(this.dataFolder));
-
+                Process proc = rt.exec(commands, null, new File(this.dataFolder));
                 BufferedReader stdInput = new BufferedReader(new
                         InputStreamReader(proc.getInputStream()));
 
@@ -188,8 +184,8 @@ public class Main {
 
     private void par2Backup() throws Exception {
         Runtime rt = Runtime.getRuntime();
-        String[] comm = {"par2j", "create", "/rr10", "/in", this.backupFilename + ".par2", this.backupFilename};
-        Process proc = rt.exec(comm, null, new File(this.backupFolder));
+        String[] commands = {"par2j", "create", "/rr10", "/in", this.backupFilename + ".par2", this.backupFilename};
+        Process proc = rt.exec(commands, null, new File(this.backupFolder));
 
         BufferedReader stdInput = new BufferedReader(new
                 InputStreamReader(proc.getInputStream()));
